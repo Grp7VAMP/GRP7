@@ -385,6 +385,49 @@ app.get('/stocks/realtime', async (req, res) => {
   }
 });
 
+app.get("/api/analyze/:symbol", async (req, res) => {
+  const { symbol } = req.params;
+  const market = req.query.market || "USD"; // Default market is USD
+
+  try {
+    // Fetch historical data from Alpha Vantage
+    const url = `https://www.alphavantage.co/query?function=DIGITAL_CURRENCY_DAILY&symbol=${symbol}&market=${market}&apikey=${API_KEY}`;
+    const response = await axios.get(url);
+
+    if (!response.data["Time Series (Digital Currency Daily)"]) {
+      return res.status(400).json({
+        success: false,
+        message: "Unable to fetch historical data. Check the symbol or API key.",
+      });
+    }
+
+    const metaData = response.data["Meta Data"];
+    const timeSeriesData = response.data["Time Series (Digital Currency Daily)"];
+
+    // Prepare data for TensorFlow analysis
+    const tensorData = prepareDataForTensorFlow(timeSeriesData);
+
+    // Analyze data using TensorFlow (predicting price trends)
+    const priceTrendPrediction = await predictPriceTrends(tensorData);
+
+    // Respond with the results
+    return res.status(200).json({
+      success: true,
+      metaData,
+      predictions: {
+        priceTrendPrediction,
+        buySignal: priceTrendPrediction > 0 ? "Buy" : "Hold",
+        riskLevel: calculateRiskLevel(priceTrendPrediction),
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while fetching data.",
+    });
+  }
+});
 
 // Start the server
 server.listen(PORT, () => {
