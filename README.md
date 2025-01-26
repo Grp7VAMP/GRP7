@@ -31,7 +31,7 @@ To run the backend locally, follow these steps:
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/Vivek-1102/grp7.git
+   git clone (https://github.com/Vivek-1102/capx.git)
    cd frontend
    npm run dev
 
