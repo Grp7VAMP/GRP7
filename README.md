@@ -31,5 +31,9 @@ To run the backend locally, follow these steps:
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/your-repo.git
-   cd your-repo
+   git clone https://github.com/Vivek-1102/grp7.git
+   cd frontend
+   npm run dev
+
+   cd backend
+   npm start
