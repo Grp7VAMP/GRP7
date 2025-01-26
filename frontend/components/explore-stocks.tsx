@@ -1,9 +1,9 @@
-'use client'
+"use client"
 
-import { useState, useEffect } from 'react'
-import axios from 'axios'
-import { BuyStockForm } from './buy-stock-form'
-import { useWebSocket } from '@/contexts/websocket-context'
+import { useState, useEffect } from "react"
+import axios from "axios"
+import { BuyStockForm } from "./buy-stock-form"
+import { useWebSocket } from "@/contexts/websocket-context"
 
 interface Stock {
   ticker: string
@@ -17,19 +17,19 @@ interface ExploreStocksProps {
   onBuyStock: (ticker: string, quantity: number) => void
 }
 
-const BASE_URL = 'https://sheltered-ridge-48373-ad732e1c98b9.herokuapp.com'
+const BASE_URL = "https://sheltered-ridge-48373-ad732e1c98b9.herokuapp.com"
 
 const api = axios.create({
   baseURL: BASE_URL,
   headers: {
-    'Accept': 'application/json',
-    'Content-Type': 'application/json',
+    Accept: "application/json",
+    "Content-Type": "application/json",
   },
 })
 
 export function ExploreStocks({ onBuyStock }: ExploreStocksProps) {
   const [stocks, setStocks] = useState<Stock[]>([])
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useState("")
   const [selectedStock, setSelectedStock] = useState<Stock | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -40,11 +40,11 @@ export function ExploreStocks({ onBuyStock }: ExploreStocksProps) {
       try {
         setIsLoading(true)
         setError(null)
-        const response = await api.get<Stock[]>('/stocks')
+        const response = await api.get<Stock[]>("/stocks")
         setStocks(response.data)
       } catch (error) {
-        console.error('Error fetching stocks:', error)
-        setError(axios.isAxiosError(error) ? error.message : 'Failed to fetch stocks')
+        console.error("Error fetching stocks:", error)
+        setError(axios.isAxiosError(error) ? error.message : "Failed to fetch stocks")
       } finally {
         setIsLoading(false)
       }
@@ -53,13 +53,15 @@ export function ExploreStocks({ onBuyStock }: ExploreStocksProps) {
     fetchStocks()
   }, [])
 
-  const formatPrice = (price: number | null) => {
-    return price !== null ? `$${price.toFixed(2)}` : 'Loading...'
+  const formatPrice = (price: number | null | undefined) => {
+    if (typeof price !== "number") return "Loading..."
+    return `$${price.toFixed(2)}`
   }
 
-  const filteredStocks = stocks.filter(stock =>
-    stock.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    stock.ticker.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredStocks = stocks.filter(
+    (stock) =>
+      stock.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      stock.ticker.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
   if (isLoading) {
@@ -71,11 +73,7 @@ export function ExploreStocks({ onBuyStock }: ExploreStocksProps) {
   }
 
   if (error) {
-    return (
-      <div className="text-center py-8 text-red-500">
-        {error}
-      </div>
-    )
+    return <div className="text-center py-8 text-red-500">{error}</div>
   }
 
   return (
@@ -106,11 +104,7 @@ export function ExploreStocks({ onBuyStock }: ExploreStocksProps) {
         })}
       </div>
       {selectedStock && (
-        <BuyStockForm
-          stock={selectedStock}
-          onClose={() => setSelectedStock(null)}
-          onBuy={onBuyStock}
-        />
+        <BuyStockForm stock={selectedStock} onClose={() => setSelectedStock(null)} onBuy={onBuyStock} />
       )}
     </div>
   )

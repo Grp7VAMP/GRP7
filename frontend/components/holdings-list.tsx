@@ -1,10 +1,10 @@
-'use client'
+"use client"
 
-import { useState } from 'react'
-import { LineChart, Line } from 'recharts'
+import { useState } from "react"
+import { LineChart, Line } from "recharts"
 import { SortIcon } from "./icons"
-import { BuySellForm } from './buy-sell-form'
-import { useWebSocket } from '@/contexts/websocket-context'
+import { BuySellForm } from "./buy-sell-form"
+import { useWebSocket } from "@/contexts/websocket-context"
 
 interface Stock {
   ticker: string
@@ -21,20 +21,19 @@ interface HoldingsListProps {
 }
 
 export function HoldingsList({ holdings, onBuy, onSell }: HoldingsListProps) {
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useState("")
   const [selectedStock, setSelectedStock] = useState<Stock | null>(null)
   const { prices } = useWebSocket()
 
-  const filteredHoldings = holdings.filter(holding =>
-    (holding.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    holding.ticker.toLowerCase().includes(searchTerm.toLowerCase())) &&
-    holding.quantity > 0
+  const filteredHoldings = holdings.filter(
+    (holding) =>
+      (holding.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        holding.ticker.toLowerCase().includes(searchTerm.toLowerCase())) &&
+      holding.quantity > 0,
   )
 
-  const formatPrice = (price: number | null) => {
-    if (price === null || isNaN(price)) {
-      return 'N/A'
-    }
+  const formatPrice = (price: number | null | undefined) => {
+    if (typeof price !== "number") return "N/A"
     return `$${price.toFixed(2)}`
   }
 
@@ -61,8 +60,8 @@ export function HoldingsList({ holdings, onBuy, onSell }: HoldingsListProps) {
           const isPositive = priceChange !== null ? priceChange >= 0 : false
 
           return (
-            <div 
-              key={holding.ticker} 
+            <div
+              key={holding.ticker}
               className="flex items-center justify-between p-2 bg-zinc-900 rounded-md cursor-pointer"
               onClick={() => setSelectedStock({ ...holding, livePrice: currentPrice })}
             >
@@ -86,9 +85,7 @@ export function HoldingsList({ holdings, onBuy, onSell }: HoldingsListProps) {
                 </div>
                 <div className="text-right">
                   <div className="font-medium">{formatPrice(currentPrice)}</div>
-                  <div className="text-sm text-zinc-400">
-                    ({formatPrice(holding.buyPrice)})
-                  </div>
+                  <div className="text-sm text-zinc-400">({formatPrice(holding.buyPrice)})</div>
                 </div>
               </div>
             </div>
@@ -96,12 +93,7 @@ export function HoldingsList({ holdings, onBuy, onSell }: HoldingsListProps) {
         })}
       </div>
       {selectedStock && (
-        <BuySellForm
-          stock={selectedStock}
-          onClose={() => setSelectedStock(null)}
-          onBuy={onBuy}
-          onSell={onSell}
-        />
+        <BuySellForm stock={selectedStock} onClose={() => setSelectedStock(null)} onBuy={onBuy} onSell={onSell} />
       )}
     </div>
   )

@@ -1,5 +1,5 @@
-import { useWebSocket } from '@/contexts/websocket-context'
-import { useMemo } from 'react'
+import { useWebSocket } from "@/contexts/websocket-context"
+import { useMemo } from "react"
 
 interface Stock {
   ticker: string
@@ -15,7 +15,7 @@ export function PortfolioSummary({ holdings }: { holdings: Stock[] }) {
   const { totalCurrent, totalInvested, totalReturns, returnsPercentage } = useMemo(() => {
     const totalCurrent = holdings.reduce((sum, holding) => {
       const currentPrice = prices[holding.ticker] || holding.livePrice || 0
-      return sum + (currentPrice * holding.quantity)
+      return sum + currentPrice * holding.quantity
     }, 0)
 
     const totalInvested = holdings.reduce((sum, holding) => sum + holding.buyPrice * holding.quantity, 0)
@@ -25,11 +25,13 @@ export function PortfolioSummary({ holdings }: { holdings: Stock[] }) {
     return { totalCurrent, totalInvested, totalReturns, returnsPercentage }
   }, [holdings, prices])
 
-  const formatPrice = (price: number) => {
+  const formatPrice = (price: number | null | undefined) => {
+    if (typeof price !== "number") return "N/A"
     return `$${Math.abs(price).toFixed(2)}`
   }
 
-  const formatPercentage = (percentage: number) => {
+  const formatPercentage = (percentage: number | null | undefined) => {
+    if (typeof percentage !== "number") return "N/A"
     return `${Math.abs(percentage).toFixed(2)}%`
   }
 
@@ -44,8 +46,9 @@ export function PortfolioSummary({ holdings }: { holdings: Stock[] }) {
           </div>
           <div className="text-right">
             <div className="text-sm text-zinc-400">Total returns</div>
-            <div className={`text-lg font-semibold ${totalReturns >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              {totalReturns >= 0 ? '+' : '-'}{formatPrice(totalReturns)} ({formatPercentage(returnsPercentage)})
+            <div className={`text-lg font-semibold ${totalReturns >= 0 ? "text-green-500" : "text-red-500"}`}>
+              {totalReturns >= 0 ? "+" : "-"}
+              {formatPrice(totalReturns)} ({formatPercentage(returnsPercentage)})
             </div>
           </div>
         </div>

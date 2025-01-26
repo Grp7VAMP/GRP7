@@ -1,17 +1,27 @@
-'use client'
+"use client"
 
-import { useState, useEffect } from 'react'
-import axios from 'axios'
-import { NavigationTabs } from "@/components/navigation-tabs"
-import { PortfolioSummary } from "@/components/portfolio-summary"
-import { HoldingsList } from "@/components/holdings-list"
-import { ExploreStocks } from "@/components/explore-stocks"
-import { StockLogoIcon } from "@/components/icons"
+import { useState, useEffect } from "react"
+import axios from "axios"
+import { NavigationHeader } from "@/components/navigation-header"
+import { MarketIndices } from "@/components/market-indices"
+import { PortfolioOverview } from "@/components/portfolio-overview"
+import { StockHoldings } from "@/components/stock-holdings"
+import { FAndO } from "@/components/f-and-o"
+import { MutualFunds } from "@/components/mutual-funds"
+import { AddMoneyForm } from "@/components/add-money-form"
 import { Toast } from "@/components/toast"
 import { WebSocketProvider } from "@/contexts/websocket-context"
-import { Tooltip } from "@/components/tooltip"
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const BASE_URL = "https://sheltered-ridge-48373-ad732e1c98b9.herokuapp.com"
+
+const api = axios.create({
+  baseURL: BASE_URL,
+  headers: {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  },
+  timeout: 15000,
+})
 
 interface Stock {
   ticker: string
@@ -21,22 +31,14 @@ interface Stock {
   livePrice: number | null
 }
 
-const BASE_URL = 'https://sheltered-ridge-48373-ad732e1c98b9.herokuapp.com'
-
-const api = axios.create({
-  baseURL: BASE_URL,
-  headers: {
-    'Accept': 'application/json',
-    'Content-Type': 'application/json',
-  },
-  timeout: 15000, // 15 seconds timeout
-});
-
 export default function Page() {
-  const [activeTab, setActiveTab] = useState('holdings')
+  const [searchQuery, setSearchQuery] = useState("")
   const [holdings, setHoldings] = useState<Stock[]>([])
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState("stocks")
+  const [currentBalance, setCurrentBalance] = useState(10000) // Starting with $10,000 virtual money
+  const [showAddMoneyForm, setShowAddMoneyForm] = useState(false)
 
   useEffect(() => {
     fetchHoldings()
@@ -45,13 +47,13 @@ export default function Page() {
   const fetchHoldings = async () => {
     try {
       setIsLoading(true)
-      const response = await api.get<Stock[]>('/stocks')
+      const response = await api.get<Stock[]>("/stocks")
       setHoldings(response.data)
     } catch (error) {
-      console.error('Error fetching holdings:', error)
-      setToast({ 
-        message: axios.isAxiosError(error) ? error.message : 'Failed to fetch holdings', 
-        type: 'error' 
+      console.error("Error fetching holdings:", error)
+      setToast({
+        message: axios.isAxiosError(error) ? error.message : "Failed to fetch holdings",
+        type: "error",
       })
     } finally {
       setIsLoading(false)
@@ -60,75 +62,43 @@ export default function Page() {
 
   const handleBuyStock = async (ticker: string, quantityToBuy: number, retryCount = 0) => {
     if (quantityToBuy <= 0) {
-      setToast({ message: 'Quantity must be greater than 0', type: 'error' })
+      setToast({ message: "Quantity must be greater than 0", type: "error" })
       return
     }
 
     const maxRetries = 3
-    const baseDelay = 1000 // 1 second
+    const baseDelay = 1000
 
     try {
       console.log(`Attempting to buy ${quantityToBuy} shares of ${ticker}. Attempt ${retryCount + 1}`)
-      
-      // Ensure quantityToBuy is a positive integer
-      const quantity = Math.max(1, Math.floor(quantityToBuy))
-      
-      // Note: Live price check removed as the endpoint is not available.
-      // The server should handle live price availability internally.
-      // Remove this block
-      // const livePrice = await api.get(`/stocks/${ticker}/price`)
-      // if (!livePrice.data || livePrice.data.price === null) {
-      //   setToast({ 
-      //     message: 'Live price for this stock is currently unavailable. Please try again later.',
-      //     type: 'error' 
-      //   })
-      //   return
-      // }
 
-      const response = await api.post('/stocks/buy', { 
+      const quantity = Math.max(1, Math.floor(quantityToBuy))
+
+      const response = await api.post("/stocks/buy", {
         ticker: ticker.trim(),
-        quantityToBuy: quantity
+        quantityToBuy: quantity,
       })
-      console.log('Buy response:', response.data)
-      setToast({ message: response.data.message || 'Stock bought successfully', type: 'success' })
+      console.log("Buy response:", response.data)
+      setToast({ message: response.data.message || "Stock bought successfully", type: "success" })
       await fetchHoldings()
     } catch (error) {
-      console.error('Error buying stock:', error)
+      console.error("Error buying stock:", error)
       if (axios.isAxiosError(error)) {
-        console.error('Axios error details:', {
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          data: error.response?.data,
-          headers: error.response?.headers,
-        })
-
         if (error.response?.status === 500 && retryCount < maxRetries) {
           const delayTime = baseDelay * Math.pow(2, retryCount)
           console.log(`Retrying buy operation for ${ticker}. Attempt ${retryCount + 1} in ${delayTime}ms`)
-          await delay(delayTime)
+          await new Promise((resolve) => setTimeout(resolve, delayTime))
           return handleBuyStock(ticker, quantityToBuy, retryCount + 1)
         }
 
-        if (error.response?.status === 400) {
-          setToast({ 
-            message: 'Unable to process the request. The stock might be unavailable or there might be an issue with the live price.',
-            type: 'error' 
-          })
-        } else if (error.response?.data?.error?.name === 'PrismaClientValidationError') {
-          setToast({ 
-            message: 'Invalid data format. Please check your input and try again.',
-            type: 'error' 
-          })
-        } else {
-          setToast({ 
-            message: error.response?.data?.message || `Failed to buy stock: ${error.message}`, 
-            type: 'error' 
-          })
-        }
+        setToast({
+          message: error.response?.data?.message || `Failed to buy stock: ${error.message}`,
+          type: "error",
+        })
       } else {
-        setToast({ 
-          message: 'An unexpected error occurred while buying the stock', 
-          type: 'error' 
+        setToast({
+          message: "An unexpected error occurred while buying the stock",
+          type: "error",
         })
       }
     }
@@ -136,82 +106,89 @@ export default function Page() {
 
   const handleSellStock = async (ticker: string, quantityToSell: number) => {
     if (quantityToSell <= 0) {
-      setToast({ message: 'Quantity must be greater than 0', type: 'error' })
+      setToast({ message: "Quantity must be greater than 0", type: "error" })
       return
     }
 
     try {
-      // Ensure quantityToSell is a positive integer
       const quantity = Math.max(1, Math.floor(quantityToSell))
 
-      const response = await api.post('/stocks/sell', {
-        ticker: ticker.trim(), // Ensure no whitespace
-        quantityToSell: quantity
+      const response = await api.post("/stocks/sell", {
+        ticker: ticker.trim(),
+        quantityToSell: quantity,
       })
-      setToast({ message: response.data.message || 'Stock sold successfully', type: 'success' })
+      setToast({ message: response.data.message || "Stock sold successfully", type: "success" })
       await fetchHoldings()
     } catch (error) {
-      console.error('Error selling stock:', error)
+      console.error("Error selling stock:", error)
       if (axios.isAxiosError(error) && error.response) {
-        if (error.response?.data?.error?.name === 'PrismaClientValidationError') {
-          setToast({ 
-            message: 'Invalid data format. Please check your input and try again.',
-            type: 'error' 
-          })
-        } else {
-          setToast({ 
-            message: error.response.data.message || 'Failed to sell stock. Please try again.', 
-            type: 'error' 
-          })
-        }
+        setToast({
+          message: error.response.data.message || "Failed to sell stock. Please try again.",
+          type: "error",
+        })
       } else {
-        setToast({ 
-          message: 'An unexpected error occurred while selling the stock', 
-          type: 'error' 
+        setToast({
+          message: "An unexpected error occurred while selling the stock",
+          type: "error",
         })
       }
     }
   }
 
+  const handleAddMoney = (amount: number) => {
+    setCurrentBalance((prevBalance) => prevBalance + amount)
+    setToast({ message: `Successfully added $${amount.toFixed(2)}`, type: "success" })
+  }
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab)
+  }
+
   return (
-    <WebSocketProvider wsUrl={'wss://sheltered-ridge-48373-ad732e1c98b9.herokuapp.com'}>
-      <div className="min-h-screen bg-black text-white">
-        <header className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-2">
-            <StockLogoIcon className="h-8 w-8 text-blue-500" />
-            <h1 className="text-2xl font-bold">Stocks</h1>
-          </div>
-          <div className="flex items-center">
-            <Tooltip content="Vivek Singh">
-              <div className="h-8 w-8 rounded-full bg-green-700 flex items-center justify-center cursor-pointer">
-                V
-              </div>
-            </Tooltip>
-          </div>
-        </header>
-        <main className="p-4 space-y-6">
-          <NavigationTabs onTabChange={setActiveTab} />
-          {isLoading ? (
-            <div className="flex justify-center items-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-            </div>
-          ) : (
-            <>
-              {activeTab === 'holdings' && (
+    <WebSocketProvider>
+      <div className="min-h-screen bg-gray-50">
+        <NavigationHeader
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          currentBalance={currentBalance}
+          onAddMoneyClick={() => setShowAddMoneyForm(true)}
+        />
+        <main className="max-w-[1400px] mx-auto px-6">
+          <MarketIndices />
+          <div className="grid lg:grid-cols-3 gap-8 mt-8">
+            <div className="lg:col-span-2">
+              {activeTab === "stocks" && (
                 <>
-                  <PortfolioSummary holdings={holdings} />
-                  <HoldingsList holdings={holdings} onBuy={handleBuyStock} onSell={handleSellStock} />
+                  <PortfolioOverview holdings={holdings} />
+                  {isLoading ? (
+                    <div className="flex justify-center items-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                    </div>
+                  ) : (
+                    <StockHoldings holdings={holdings} onBuy={handleBuyStock} onSell={handleSellStock} />
+                  )}
                 </>
               )}
-              {activeTab === 'explore' && (
-                <ExploreStocks onBuyStock={handleBuyStock} />
-              )}
-            </>
-          )}
+              {activeTab === "f-and-o" && <FAndO />}
+              {activeTab === "mutual-funds" && <MutualFunds />}
+            </div>
+            <div className="hidden lg:block">
+              <div className="bg-white rounded-lg p-6 text-center border border-gray-200">
+                <h3 className="text-lg font-medium mb-4">Add money to invest</h3>
+                <button
+                  className="bg-green-500 text-white px-6 py-2 rounded-full hover:bg-green-600 transition-colors"
+                  onClick={() => setShowAddMoneyForm(true)}
+                >
+                  Add money
+                </button>
+              </div>
+            </div>
+          </div>
         </main>
-        {toast && (
-          <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
-        )}
+        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+        {showAddMoneyForm && <AddMoneyForm onAddMoney={handleAddMoney} onClose={() => setShowAddMoneyForm(false)} />}
       </div>
     </WebSocketProvider>
   )

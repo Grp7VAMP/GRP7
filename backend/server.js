@@ -1,10 +1,10 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
-import { WebSocketServer } from 'ws';
+
 import dotenv from 'dotenv';
 import cors from 'cors';
 import http from 'http';
-import WebSocket from 'ws';
+
 import axios  from "axios"
 import tf from "@tensorflow/tfjs";
 
@@ -16,7 +16,7 @@ const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
 
 // Initialize WebSocket server for frontend connections
-const wss = new WebSocketServer({ server });
+
 
 // Initialize Prisma client
 const prisma = new PrismaClient({
@@ -24,146 +24,21 @@ const prisma = new PrismaClient({
 });
 
 // Finnhub WebSocket configuration
-const FINNHUB_WS_URL = process.env.URL;
+
 const API_KEY = process.env.API_KEY;
-const Alpha_Key = process.env.Alpha_Key;
-let finnhubSocket = null;
+const STOCK_API_URL = 'https://finnhub.io/api/v1/quote';
+
+
 
 // Data storage
-const clients = new Set();
+
 const liveStockData = new Map();
-const subscribedStocks = new Set();
+
 
 // Middleware
 app.use(express.json());
 app.use(cors());
 
-// Initialize Finnhub WebSocket connection
-function initializeFinnhubSocket() {
-  finnhubSocket = new WebSocket(`${FINNHUB_WS_URL}?token=${API_KEY}`);
-
-  finnhubSocket.on('open', () => {
-    console.log('Connected to Finnhub WebSocket');
-    // Resubscribe to all stocks
-    subscribedStocks.forEach((symbol) => {
-      if (finnhubSocket) {
-        finnhubSocket.send(JSON.stringify({ type: 'subscribe', symbol }));
-      }
-    });
-  });
-
-  finnhubSocket.on('message', (data) => {
-    try {
-      const message = JSON.parse(data.toString());
-      if (message.type === 'trade' && message.data) {
-        message.data.forEach((trade) => {
-          const { s: symbol, p: price } = trade;
-          liveStockData.set(symbol, price);
-
-          // Broadcast updates to all connected clients
-          broadcastStockUpdate(symbol, price);
-        });
-      }
-    } catch (error) {
-      console.error('Error parsing Finnhub message:', error);
-    }
-  });
-
-  finnhubSocket.on('error', (error) => {
-    console.error('Finnhub WebSocket error:', error);
-  });
-
-  finnhubSocket.on('close', () => {
-    console.log('Finnhub WebSocket closed, attempting reconnection...');
-    setTimeout(initializeFinnhubSocket, 10000); // Attempt to reconnect
-  });
-}
-
-// Initialize the Finnhub connection
-initializeFinnhubSocket();
-
-// WebSocket server connection handler
-wss.on('connection', async (ws) => {
-  console.log('New frontend client connected');
-  clients.add(ws);
-
-  // Send initial stock data to the new client
-  try {
-    const stocks = await prisma.stock.findMany();
-    const stocksWithLiveData = stocks.map((stock) => ({
-      ...stock,
-      livePrice: liveStockData.get(stock.ticker) || null,
-    }));
-    ws.send(JSON.stringify({ type: 'initial', data: stocksWithLiveData }));
-  } catch (error) {
-    console.error('Error fetching initial stock data:', error);
-  }
-
-  // Handle client disconnection
-  ws.on('close', () => {
-    console.log('Client disconnected');
-    clients.delete(ws);
-  });
-
-  // Handle messages from client
-  ws.on('message', async (message) => {
-    try {
-      const data = JSON.parse(message.toString());
-
-      switch (data.action) {
-        case 'subscribe':
-          await handleSubscription(data.symbol);
-          break;
-        case 'unsubscribe':
-          await handleUnsubscription(data.symbol);
-          break;
-        // Add more cases as needed
-      }
-    } catch (error) {
-      console.error('Error handling client message:', error);
-    }
-  });
-});
-
-// Broadcast stock updates to all connected clients
-function broadcastStockUpdate(symbol, price) {
-  const update = JSON.stringify({
-    type: 'update',
-    data: { symbol, price },
-  });
-
-  clients.forEach((client) => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(update); // Send the update to each connected client
-    }
-  });
-}
-
-// Handle stock subscription
-async function handleSubscription(symbol) {
-  if (!subscribedStocks.has(symbol)) {
-    subscribedStocks.add(symbol); // Add the stock to subscribed set
-
-    // Subscribe to the stock via Finnhub WebSocket
-    if (finnhubSocket && finnhubSocket.readyState === WebSocket.OPEN) {
-      finnhubSocket.send(JSON.stringify({ type: 'subscribe', symbol }));
-      console.log(`Subscribed to ${symbol}`);
-    }
-  }
-}
-
-// Handle stock unsubscription
-async function handleUnsubscription(symbol) {
-  if (subscribedStocks.has(symbol)) {
-    subscribedStocks.delete(symbol); // Remove from subscribed set
-
-    // Unsubscribe from the stock via Finnhub WebSocket
-    if (finnhubSocket && finnhubSocket.readyState === WebSocket.OPEN) {
-      finnhubSocket.send(JSON.stringify({ type: 'unsubscribe', symbol }));
-      console.log(`Unsubscribed from ${symbol}`);
-    }
-  }
-}
 
 // Helper function to prepare TensorFlow-compatible data
 const prepareDataForTensorFlow = (timeSeriesData) => {
@@ -426,6 +301,44 @@ app.get("/api/analyze/:symbol", async (req, res) => {
       success: false,
       message: "Server error while fetching data.",
     });
+  }
+});
+
+
+
+// Function to get stock data from Finnhub
+const getStockData = async (symbol) => {
+  try {
+    const response = await axios.get(STOCK_API_URL, {
+      params: {
+        symbol: symbol,
+        token: API_KEY
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching stock data:', error);
+    return null;
+  }
+};
+
+// Endpoint to get stock data
+app.get('/stock/:symbol', async (req, res) => {
+  const { symbol } = req.params;
+  const stockData = await getStockData(symbol);
+
+  if (stockData) {
+    const { c: currentPrice, h: high, l: low, o: open, pc: previousClose } = stockData;
+    res.json({
+      symbol,
+      currentPrice,
+      high,
+      low,
+      open,
+      previousClose
+    });
+  } else {
+    res.status(500).json({ message: 'Unable to fetch stock data' });
   }
 });
 
