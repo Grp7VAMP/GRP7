@@ -1,6 +1,6 @@
-# Project Name
+# Stock Portfolio Website
 
-This project consists of a **frontend** deployed on Vercel and a **backend** deployed on Heroku. The frontend is built with [React/Vue.js/etc.] and the backend is built with [Node.js/Express/etc.]. 
+This project consists of a **frontend** deployed on Vercel and a **backend** deployed on Heroku. The frontend is built with [Nextjs] and the backend is built with [Node.js/Express/etc.]. 
 
 ## Live Demo
 
